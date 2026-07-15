@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triage Result</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+    <div class="w-full max-w-md px-6 text-center">
+        {% if result.severity == "RED" %}
+        <div class="bg-red-600 rounded-lg p-6 mb-6">
+            <p class="text-3xl font-bold">🔴 RED — Critical</p>
+        </div>
+        {% elif result.severity == "YELLOW" %}
+        <div class="bg-yellow-500 text-black rounded-lg p-6 mb-6">
+            <p class="text-3xl font-bold">🟡 YELLOW — Urgent</p>
+        </div>
+        {% else %}
+        <div class="bg-green-600 rounded-lg p-6 mb-6">
+            <p class="text-3xl font-bold">🟢 GREEN — Stable</p>
+        </div>
+        {% endif %}
+
+        <p class="text-gray-300 mb-6">{{ result.reason }}</p>
+
+        <a href="tel:108" class="block bg-white text-gray-900 font-bold py-4 rounded-lg text-lg mb-4">
+            📞 Call 108 Now
+        </a>
+
+        <a href="/hospitals" class="block bg-gray-800 border border-gray-700 text-white font-semibold py-3 rounded-lg mb-4">
+            🏥 Nearby Hospitals
+        </a>
+
+        <a href="/input" class="text-gray-400 underline">Check another patient</a>
+    </div>
+</body>
+</html>
