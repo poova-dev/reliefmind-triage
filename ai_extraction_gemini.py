@@ -29,7 +29,8 @@ model = genai.GenerativeModel(
 
 def extract_symptoms(text: str) -> dict:
     prompt = f"""Read this patient description and determine each field.
-Default to the safer (more urgent) assumption if something is unclear.
+The description might be in English, Tamil (தமிழ்), Hindi (हिंदी), or mixed languages. Translate internally if necessary.
+Default to the safer (more urgent) assumption if something is unclear or ambiguous.
 
 Patient description: {text}"""
     response = model.generate_content(prompt)

@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -30,4 +31,8 @@ def result_page(request: Request, symptom_text: str = Form(...), disaster_mode: 
 
 @app.get("/hospitals", response_class=HTMLResponse)
 def hospitals_page(request: Request):
-    return templates.TemplateResponse("hospitals.html", {"request": request, "hospitals": MOCK_HOSPITALS})
+    return templates.TemplateResponse("hospitals.html", {
+        "request": request,
+        "hospitals": MOCK_HOSPITALS,
+        "google_maps_api_key": os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    })

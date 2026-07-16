@@ -3,36 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Triage Result</title>
+    <title>Triage Assessment Result - ReliefMind Triage</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at 50% 50%, #111827 0%, #030712 100%);
+            overflow-x: hidden;
+        }
+        .heading-font {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            opacity: 0.1;
+            animation: float-blob 10s infinite alternate ease-in-out;
+        }
+        @keyframes float-blob {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(40px, -40px) scale(1.2); }
+        }
+        .glass-card {
+            background: rgba(17, 24, 39, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .severity-glow-RED {
+            box-shadow: 0 0 30px rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+        .severity-glow-YELLOW {
+            box-shadow: 0 0 30px rgba(234, 179, 8, 0.25);
+            border-color: rgba(234, 179, 8, 0.4);
+        }
+        .severity-glow-GREEN {
+            box-shadow: 0 0 30px rgba(34, 197, 94, 0.25);
+            border-color: rgba(34, 197, 94, 0.4);
+        }
+        .pulse-call {
+            animation: pulse-red 2s infinite;
+        }
+        @keyframes pulse-red {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-    <div class="w-full max-w-md px-6 text-center">
+<body class="text-white min-h-screen flex items-center justify-center relative px-4 py-8">
+    <div class="blob w-72 h-72 bg-red-600 top-1/4 left-1/4" style="animation-duration: 8s;"></div>
+    <div class="blob w-80 h-80 bg-blue-600 bottom-1/4 right-1/4" style="animation-duration: 12s; animation-delay: 2s;"></div>
+
+    <div class="glass-card w-full max-w-lg rounded-2xl p-6 md:p-8 relative z-10 mx-auto text-center severity-glow-{{ result.severity }}">
+        <!-- Severity Header Banner -->
         {% if result.severity == "RED" %}
-        <div class="bg-red-600 rounded-lg p-6 mb-6">
-            <p class="text-3xl font-bold">🔴 RED — Critical</p>
+        <div class="inline-flex flex-col items-center justify-center bg-red-500/10 border border-red-500/30 rounded-2xl p-6 w-full mb-6">
+            <span class="material-symbols-outlined text-red-500 text-5xl mb-2 animate-pulse">emergency</span>
+            <h2 class="text-3xl font-extrabold text-red-500 tracking-tight heading-font">RED &mdash; CRITICAL</h2>
+            <p class="text-red-400 text-xs font-semibold uppercase tracking-wider mt-1.5">Immediate medical intervention required</p>
         </div>
         {% elif result.severity == "YELLOW" %}
-        <div class="bg-yellow-500 text-black rounded-lg p-6 mb-6">
-            <p class="text-3xl font-bold">🟡 YELLOW — Urgent</p>
+        <div class="inline-flex flex-col items-center justify-center bg-yellow-500/10 border border-yellow-500/30 rounded-2xl p-6 w-full mb-6">
+            <span class="material-symbols-outlined text-yellow-500 text-5xl mb-2 animate-pulse">warning</span>
+            <h2 class="text-3xl font-extrabold text-yellow-500 tracking-tight heading-font">YELLOW &mdash; URGENT</h2>
+            <p class="text-yellow-400 text-xs font-semibold uppercase tracking-wider mt-1.5">Urgent attention needed soon</p>
         </div>
         {% else %}
-        <div class="bg-green-600 rounded-lg p-6 mb-6">
-            <p class="text-3xl font-bold">🟢 GREEN — Stable</p>
+        <div class="inline-flex flex-col items-center justify-center bg-green-500/10 border border-green-500/30 rounded-2xl p-6 w-full mb-6">
+            <span class="material-symbols-outlined text-green-500 text-5xl mb-2">check_circle</span>
+            <h2 class="text-3xl font-extrabold text-green-500 tracking-tight heading-font">GREEN &mdash; STABLE</h2>
+            <p class="text-green-400 text-xs font-semibold uppercase tracking-wider mt-1.5">Stable condition, monitor closely</p>
         </div>
         {% endif %}
 
-        <p class="text-gray-300 mb-6">{{ result.reason }}</p>
+        <!-- Reason / Analysis Summary -->
+        <div class="bg-gray-900/40 rounded-xl p-4 mb-6 border border-gray-800/80 text-left">
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">Assessment Reason</h3>
+            <p class="text-gray-200 text-sm leading-relaxed">{{ result.reason }}</p>
+        </div>
 
-        <a href="tel:108" class="block bg-white text-gray-900 font-bold py-4 rounded-lg text-lg mb-4">
-            📞 Call 108 Now
+        <!-- AI Extracted Symptoms details -->
+        {% if result.extracted_data %}
+        <div class="bg-gray-900/30 rounded-xl p-4 mb-6 border border-gray-800/60 text-left">
+            <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3">Extracted Vital Indicators</h3>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="flex items-center gap-2 py-1 px-2.5 rounded bg-gray-900/60 border border-gray-800/50">
+                    <span class="material-symbols-outlined text-sm text-gray-400">directions_walk</span>
+                    <span>Can Walk: </span>
+                    <strong class="ml-auto {{ 'text-green-400' if result.extracted_data.can_walk else 'text-red-400' }}">
+                        {{ 'Yes' if result.extracted_data.can_walk else 'No' }}
+                    </strong>
+                </div>
+                <div class="flex items-center gap-2 py-1 px-2.5 rounded bg-gray-900/60 border border-gray-800/50">
+                    <span class="material-symbols-outlined text-sm text-gray-400">air</span>
+                    <span>Breathing: </span>
+                    <strong class="ml-auto {{ 'text-green-400' if result.extracted_data.is_breathing else 'text-red-400' }}">
+                        {{ 'Normal' if result.extracted_data.is_breathing and not result.extracted_data.breathing_labored else ('Labored' if result.extracted_data.breathing_labored else 'No') }}
+                    </strong>
+                </div>
+                <div class="flex items-center gap-2 py-1 px-2.5 rounded bg-gray-900/60 border border-gray-800/50">
+                    <span class="material-symbols-outlined text-sm text-gray-400">favorite</span>
+                    <span>Pulse Present: </span>
+                    <strong class="ml-auto {{ 'text-green-400' if result.extracted_data.pulse_present else 'text-red-400' }}">
+                        {{ 'Yes' if result.extracted_data.pulse_present else 'No' }}
+                    </strong>
+                </div>
+                <div class="flex items-center gap-2 py-1 px-2.5 rounded bg-gray-900/60 border border-gray-800/50">
+                    <span class="material-symbols-outlined text-sm text-gray-400">psychology</span>
+                    <span>Responsive: </span>
+                    <strong class="ml-auto {{ 'text-green-400' if result.extracted_data.can_follow_commands else 'text-red-400' }}">
+                        {{ 'Yes' if result.extracted_data.can_follow_commands else 'No' }}
+                    </strong>
+                </div>
+            </div>
+            {% if result.extracted_data.disaster_mode %}
+            <div class="mt-3 py-1 px-2.5 rounded bg-red-950/20 border border-red-900/30 text-xs text-red-300 flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm text-red-400">warning</span>
+                <span>Active Disaster Mode Triage applied.</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Call Action Button -->
+        <a href="tel:108" class="pulse-call flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl text-lg mb-3 shadow-lg shadow-red-600/20 transition-all">
+            <span class="material-symbols-outlined">call</span> Call 108 Now
         </a>
 
-        <a href="/hospitals" class="block bg-gray-800 border border-gray-700 text-white font-semibold py-3 rounded-lg mb-4">
-            🏥 Nearby Hospitals
+        <!-- Find Hospitals Button -->
+        <a href="/hospitals" class="flex items-center justify-center gap-2 bg-gray-800/80 hover:bg-gray-800 border border-gray-700/80 hover:border-gray-600 text-white font-semibold py-3.5 rounded-xl transition-all mb-5">
+            <span class="material-symbols-outlined text-green-400">local_hospital</span> Find Nearby Hospitals
         </a>
 
-        <a href="/input" class="text-gray-400 underline">Check another patient</a>
+        <!-- Restart -->
+        <a href="/input" class="text-gray-400 hover:text-white underline text-sm transition-colors block">
+            Check another patient
+        </a>
     </div>
 </body>
 </html>

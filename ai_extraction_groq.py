@@ -26,7 +26,7 @@ def extract_symptoms(text: str) -> dict:
         messages=[
             {
                 "role": "system",
-                "content": f"You extract triage fields from patient descriptions. Respond ONLY with valid JSON matching this schema: {json.dumps(EXTRACTION_SCHEMA)}. Default to the safer (more urgent) assumption if something is unclear."
+                "content": f"You extract triage fields from patient descriptions. The description might be in English, Tamil (தமிழ்), Hindi (हिंदी), or mixed languages. Understand the context and translate if necessary. Respond ONLY with valid JSON matching this schema: {json.dumps(EXTRACTION_SCHEMA)}. Default to the safer (more urgent) assumption if something is unclear."
             },
             {
                 "role": "user",

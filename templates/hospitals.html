@@ -1,25 +1,667 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nearby Hospitals</title>
+    <title>Nearby Hospitals - ReliefMind Triage</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        rel="stylesheet">
+
+    <!-- Leaflet.js for free dark map fallback -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at 50% 50%, #111827 0%, #030712 100%);
+            overflow-x: hidden;
+        }
+
+        .heading-font {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+
+        .glass-card {
+            background: rgba(17, 24, 39, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        #map {
+            border-radius: 1rem;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Custom scrollbar for hospitals list */
+        .custom-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Style adjustments for leaflet zoom controls to match dark theme */
+        .leaflet-bar a {
+            background-color: #1f2937 !important;
+            color: #f9fafb !important;
+            border-bottom: 1px solid #374151 !important;
+        }
+
+        .leaflet-bar a:hover {
+            background-color: #374151 !important;
+        }
+    </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen px-6 py-10">
-    <div class="max-w-md mx-auto">
-        <h2 class="text-2xl font-bold mb-6">Nearby Hospitals</h2>
 
-        {% for hospital in hospitals %}
-        <div class="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4">
-            <p class="font-bold text-lg">{{ hospital.name }}</p>
-            <p class="text-gray-400 text-sm mb-2">{{ hospital.distance }} away · {{ hospital.type }}</p>
-            <a href="{{ hospital.maps_link }}" target="_blank"
-                class="text-red-400 underline text-sm">Get Directions</a>
+<body class="text-white min-h-screen px-4 py-8 relative">
+    <div class="max-w-6xl mx-auto z-10 relative">
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div>
+                <a href="/input"
+                    class="inline-flex items-center gap-1.5 text-gray-400 hover:text-white transition-colors text-sm mb-2 font-medium group">
+                    <span
+                        class="material-symbols-outlined text-base transition-transform group-hover:-translate-x-1">arrow_back</span>
+                    Back
+                </a>
+                <h2 class="text-3xl font-extrabold tracking-tight heading-font">Nearby Hospitals</h2>
+                <p class="text-gray-400 text-sm mt-0.5">Locate medical facilities within emergency reach.</p>
+            </div>
         </div>
-        {% endfor %}
 
-        <a href="/input" class="text-gray-400 underline block mt-6">← Back</a>
+        <!-- Notification Banner -->
+        <div id="location-banner" class="hidden mb-6 p-4 rounded-xl border flex items-center gap-3">
+            <span class="material-symbols-outlined text-2xl" id="banner-icon">location_off</span>
+            <div class="text-sm">
+                <span class="font-bold block" id="banner-title">Location services unavailable</span>
+                <span class="text-gray-300" id="banner-desc">Showing default backup location (Chennai). Enable
+                    GPS/location access for local hospitals.</span>
+            </div>
+        </div>
+
+        <!-- Main Workspace split -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+            <!-- Left: Map -->
+            <div class="lg:col-span-7 flex flex-col h-[400px] lg:h-[550px]">
+                <div id="map" class="w-full h-full relative z-0">
+                    <div id="map-loading"
+                        class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl">
+                        <div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin">
+                        </div>
+                        <p class="text-sm text-gray-400">Loading dynamic emergency map...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: List and Controls -->
+            <div class="lg:col-span-5 flex flex-col glass-card rounded-2xl p-5 h-[500px] lg:h-[550px]">
+                <!-- Search Controls -->
+                <div class="flex items-center justify-between mb-4 border-b border-gray-800/80 pb-4">
+                    <span class="text-sm font-bold text-gray-200">Facility List</span>
+
+                    <div class="flex items-center gap-2">
+                        <label for="radius-select" class="text-xs font-semibold text-gray-400">Radius:</label>
+                        <select id="radius-select" onchange="updateSearchRadius(this.value)"
+                            class="bg-gray-900 border border-gray-700 text-white text-xs rounded-lg p-1.5 focus:outline-none">
+                            <option value="1000">1 km</option>
+                            <option value="3000">3 km</option>
+                            <option value="5000" selected>5 km</option>
+                            <option value="10000">10 km</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Hospital Cards List Container -->
+                <div id="hospital-list" class="flex-grow overflow-y-auto custom-scroll space-y-3 pr-1 text-sm">
+                    <!-- Dynamic Cards -->
+                </div>
+            </div>
+        </div>
     </div>
+
+
+
+    <script>
+        // Default Backup location: Chennai Central (if GPS/Geo is disabled)
+        const DEFAULT_LOCATION = { lat: 13.0827, lng: 80.2707, name: "Chennai Central" };
+        let currentCoords = DEFAULT_LOCATION;
+        let searchRadius = 5000; // 5km default
+        let mapInstance = null;
+        let mapMarkers = [];
+        let activeProvider = "osm"; // "google" or "osm"
+
+        // Backend passed key (if set)
+        const BACKEND_API_KEY = "{{ google_maps_api_key }}";
+
+        // Check if there is an API Key in the environment
+        function getMapsApiKey() {
+            return (BACKEND_API_KEY && BACKEND_API_KEY.trim() !== "" ? BACKEND_API_KEY : null);
+        }
+
+        // Initialize Map flow on load
+        window.addEventListener("DOMContentLoaded", () => {
+            detectLocationAndInit();
+        });
+
+        // Google Maps auth failure fallback
+        window.gm_authFailure = function() {
+            console.warn("Google Maps auth failure. Falling back to OpenStreetMap.");
+            activeProvider = "osm";
+            initLeafletMap();
+        };
+
+        function updateSearchRadius(val) {
+            searchRadius = parseInt(val, 10);
+            const loader = document.getElementById("map-loading");
+            if (loader) loader.classList.remove("hidden");
+
+            if (activeProvider === "google") {
+                searchGooglePlaces();
+            } else {
+                searchOpenStreetMapPlaces();
+            }
+        }
+
+        // Detect user coordinates, fallback to defaults if fail
+        function detectLocationAndInit() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        currentCoords = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude,
+                            name: "Your Location"
+                        };
+                        setupMapAndQuery();
+                    },
+                    (error) => {
+                        console.warn("Geolocation failed: ", error.message);
+                        showLocationBanner("GPS Access Denied / Unavailable", "Showing hospitals near default location. Enable location services for precise local results.");
+                        setupMapAndQuery();
+                    },
+                    { timeout: 8000, enableHighAccuracy: true }
+                );
+            } else {
+                showLocationBanner("Browser Geolocation Unsupported", "Showing backup locations. Your browser does not support automatic location services.");
+                setupMapAndQuery();
+            }
+        }
+
+        function showLocationBanner(title, desc) {
+            const banner = document.getElementById("location-banner");
+            document.getElementById("banner-title").innerText = title;
+            document.getElementById("banner-desc").innerText = desc;
+            banner.classList.remove("hidden");
+            banner.classList.add("bg-amber-950/20", "border-amber-500/30", "text-amber-300");
+        }
+
+        // Orchestrate whether we load Google or Leaflet (OSM)
+        function setupMapAndQuery() {
+            const key = getMapsApiKey();
+            if (key) {
+                activeProvider = "google";
+                loadGoogleMapsApi(key);
+            } else {
+                activeProvider = "osm";
+                initLeafletMap();
+            }
+        }
+
+        /* ------------------ LEAFLET (OSM) PROVIDER ------------------ */
+
+        function initLeafletMap() {
+            const mapContainer = document.getElementById("map");
+
+            // Clear prior map element to reset
+            mapContainer.innerHTML = '<div id="map-loading" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl hidden"><div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div><p class="text-sm text-gray-400">Loading dynamic emergency map...</p></div>';
+
+            mapInstance = L.map('map', { zoomControl: true }).setView([currentCoords.lat, currentCoords.lng], 13);
+
+            // Load CartoDB Dark Matter tiles (premium look & free)
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(mapInstance);
+
+            // Add Red circle indicator for patient location
+            const patientCircle = L.circle([currentCoords.lat, currentCoords.lng], {
+                color: '#ef4444',
+                fillColor: '#ef4444',
+                fillOpacity: 0.25,
+                radius: 120
+            }).addTo(mapInstance);
+            patientCircle.bindPopup("<b>Patient Location</b>").openPopup();
+
+            // Perform Overpass hospital fetch
+            searchOpenStreetMapPlaces();
+        }
+
+        function searchOpenStreetMapPlaces() {
+            const lat = currentCoords.lat;
+            const lon = currentCoords.lng;
+            const radius = searchRadius; // Dynamic radius
+
+            // Query overpass API for hospitals
+            const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
+
+            fetch(overpassUrl)
+                .then(res => res.json())
+                .then(data => {
+                    clearMapMarkers();
+                    const hospitals = [];
+
+                    if (data && data.elements) {
+                        data.elements.forEach(element => {
+                            const hLat = element.lat || (element.center && element.center.lat);
+                            const hLon = element.lon || (element.center && element.center.lon);
+
+                            if (hLat && hLon) {
+                                const rawName = element.tags.name || "Unnamed Medical Facility";
+                                const distanceText = calculateDistance(lat, lon, hLat, hLon);
+                                const distanceVal = parseFloat(distanceText);
+
+                                hospitals.push({
+                                    name: rawName,
+                                    lat: hLat,
+                                    lng: hLon,
+                                    distance: distanceText,
+                                    distanceVal: distanceVal,
+                                    address: element.tags["addr:street"]
+                                        ? `${element.tags["addr:street"]} ${element.tags["addr:housenumber"] || ""}`.trim()
+                                        : "Address not available",
+                                    type: element.tags.emergency === "yes" ? "Emergency / Trauma" : "General Hospital",
+                                    phone: element.tags.phone || element.tags["contact:phone"] || null,
+                                    maps_link: `https://www.google.com/maps/dir/?api=1&origin=${lat},${lon}&destination=${hLat},${hLon}`
+                                });
+                            }
+                        });
+                    }
+
+                    // Sort by distance ascending
+                    hospitals.sort((a, b) => a.distanceVal - b.distanceVal);
+
+                    // Render hospital markers on map and build listing card views
+                    renderHospitals(hospitals);
+                })
+                .catch(err => {
+                    console.error("Overpass query error: ", err);
+                    renderErrorList("Error querying nearby medical facilities from OpenStreetMap. Please verify your connection.");
+                })
+                .finally(() => {
+                    const loader = document.getElementById("map-loading");
+                    if (loader) loader.classList.add("hidden");
+                });
+        }
+
+        function clearMapMarkers() {
+            if (mapMarkers && mapMarkers.length > 0) {
+                if (activeProvider === "google") {
+                    mapMarkers.forEach(m => m.setMap(null));
+                } else {
+                    mapMarkers.forEach(m => mapInstance.removeLayer(m));
+                }
+            }
+            mapMarkers = [];
+        }
+
+        /* ------------------ GOOGLE MAPS PROVIDER ------------------ */
+
+        function loadGoogleMapsApi(key) {
+            const script = document.createElement("script");
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&libraries=places&callback=initGoogleMap`;
+            script.async = true;
+            script.defer = true;
+            script.onerror = () => {
+                console.warn("Google Maps script failed to load. Falling back to OpenStreetMap.");
+                activeProvider = "osm";
+                initLeafletMap();
+            };
+            document.head.appendChild(script);
+        }
+
+        window.initGoogleMap = function () {
+            const mapContainer = document.getElementById("map");
+            mapContainer.innerHTML = '<div id="map-loading" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl hidden"><div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div><p class="text-sm text-gray-400">Loading dynamic emergency map...</p></div>';
+
+            const mapStyle = [
+                { "elementType": "geometry", "stylers": [{ "color": "#1d2c4d" }] },
+                { "elementType": "labels.text.fill", "stylers": [{ "color": "#8ec3b9" }] },
+                { "elementType": "labels.text.stroke", "stylers": [{ "color": "#1a3646" }] },
+                { "featureType": "administrative.country", "elementType": "geometry.stroke", "stylers": [{ "color": "#4b6878" }] },
+                { "featureType": "administrative.land_parcel", "elementType": "labels.text.fill", "stylers": [{ "color": "#64779e" }] },
+                { "featureType": "administrative.province", "elementType": "geometry.stroke", "stylers": [{ "color": "#4b6878" }] },
+                { "featureType": "landscape.man_made", "elementType": "geometry.stroke", "stylers": [{ "color": "#334e87" }] },
+                { "featureType": "landscape.natural", "elementType": "geometry", "stylers": [{ "color": "#023e58" }] },
+                { "featureType": "poi", "elementType": "geometry", "stylers": [{ "color": "#283d6a" }] },
+                { "featureType": "poi", "elementType": "labels.text.fill", "stylers": [{ "color": "#6f9ba5" }] },
+                { "featureType": "poi", "elementType": "labels.text.stroke", "stylers": [{ "color": "#1d2d50" }] },
+                { "featureType": "poi.park", "elementType": "geometry.fill", "stylers": [{ "color": "#023e58" }] },
+                { "featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{ "color": "#3b72b4" }] },
+                { "featureType": "road", "elementType": "geometry", "stylers": [{ "color": "#304a7d" }] },
+                { "featureType": "road", "elementType": "labels.text.fill", "stylers": [{ "color": "#98a5be" }] },
+                { "featureType": "road", "elementType": "labels.text.stroke", "stylers": [{ "color": "#1d2d50" }] },
+                { "featureType": "road.highway", "elementType": "geometry", "stylers": [{ "color": "#2c4591" }] },
+                { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{ "color": "#192c60" }] },
+                { "featureType": "road.highway", "elementType": "labels.text.fill", "stylers": [{ "color": "#e0ebd5" }] },
+                { "featureType": "road.highway", "elementType": "labels.text.stroke", "stylers": [{ "color": "#0c47ff" }] },
+                { "featureType": "transit", "elementType": "geometry", "stylers": [{ "color": "#2f3948" }] },
+                { "featureType": "transit.station", "elementType": "labels.text.fill", "stylers": [{ "color": "#d00000" }] },
+                { "featureType": "water", "elementType": "geometry", "stylers": [{ "color": "#0e1626" }] },
+                { "featureType": "water", "elementType": "labels.text.fill", "stylers": [{ "color": "#4e6d70" }] }
+            ];
+
+            const centerLatLng = new google.maps.LatLng(currentCoords.lat, currentCoords.lng);
+
+            mapInstance = new google.maps.Map(document.getElementById('map'), {
+                center: centerLatLng,
+                zoom: 13,
+                styles: mapStyle,
+                mapTypeControl: false,
+                streetViewControl: false
+            });
+
+            // Create patient marker (red pulsing marker / icon)
+            new google.maps.Marker({
+                position: centerLatLng,
+                map: mapInstance,
+                title: "Patient Location",
+                icon: {
+                    path: google.maps.SymbolPath.CIRCLE,
+                    scale: 10,
+                    fillColor: '#ef4444',
+                    fillOpacity: 1,
+                    strokeColor: '#ffffff',
+                    strokeWeight: 2
+                }
+            });
+
+            // Trigger Places Search
+            searchGooglePlaces();
+        };
+
+        async function searchGooglePlaces() {
+            try {
+                const centerLatLng = new google.maps.LatLng(currentCoords.lat, currentCoords.lng);
+                const { Place } = await google.maps.importLibrary("places");
+                
+                const request = {
+                    includedTypes: ['hospital'],
+                    maxResultCount: 20,
+                    locationRestriction: {
+                        circle: {
+                            center: centerLatLng,
+                            radius: searchRadius
+                        }
+                    },
+                    fields: [
+                        'id',
+                        'displayName',
+                        'location',
+                        'formattedAddress',
+                        'nationalPhoneNumber',
+                        'types'
+                    ]
+                };
+
+                clearMapMarkers();
+                
+                const { places } = await Place.searchNearby(request);
+                const hospitals = [];
+                
+                if (places && places.length > 0) {
+                    places.forEach(place => {
+                        const hLat = place.location.lat();
+                        const hLng = place.location.lng();
+                        const distText = calculateDistance(currentCoords.lat, currentCoords.lng, hLat, hLng);
+                        const distVal = parseFloat(distText);
+                        
+                        hospitals.push({
+                            name: place.displayName || "Hospital",
+                            lat: hLat,
+                            lng: hLng,
+                            distance: distText,
+                            distanceVal: distVal,
+                            address: place.formattedAddress || "Address not listed",
+                            type: place.types && place.types.includes("emergency") ? "Emergency Center" : "Hospital / Clinic",
+                            phone: place.nationalPhoneNumber || null,
+                            maps_link: `https://www.google.com/maps/dir/?api=1&origin=${currentCoords.lat},${currentCoords.lng}&destination=${hLat},${hLng}`
+                        });
+                    });
+
+                    // Sort by distance
+                    hospitals.sort((a, b) => a.distanceVal - b.distanceVal);
+                    renderHospitals(hospitals);
+                } else {
+                    console.warn("Google Places returned 0 results, falling back to OSM data on Google Map.");
+                    fetchOpenStreetMapDataForGoogleMap();
+                }
+                const loader = document.getElementById("map-loading");
+                if (loader) loader.classList.add("hidden");
+            } catch (err) {
+                console.warn("Google Places search failed, falling back to OSM data on Google Map: ", err);
+                fetchOpenStreetMapDataForGoogleMap();
+            }
+        }
+
+        function fetchOpenStreetMapDataForGoogleMap() {
+            const lat = currentCoords.lat;
+            const lon = currentCoords.lng;
+            const radius = searchRadius;
+            const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
+
+            fetch(overpassUrl)
+                .then(res => res.json())
+                .then(data => {
+                    clearMapMarkers();
+                    const hospitals = [];
+
+                    if (data && data.elements) {
+                        data.elements.forEach(element => {
+                            const hLat = element.lat || (element.center && element.center.lat);
+                            const hLon = element.lon || (element.center && element.center.lon);
+                            
+                            if (hLat && hLon) {
+                                const rawName = element.tags.name || "Unnamed Medical Facility";
+                                const distanceText = calculateDistance(lat, lon, hLat, hLon);
+                                const distanceVal = parseFloat(distanceText);
+
+                                hospitals.push({
+                                    name: rawName,
+                                    lat: hLat,
+                                    lng: hLon,
+                                    distance: distanceText,
+                                    distanceVal: distanceVal,
+                                    address: element.tags["addr:street"] 
+                                        ? `${element.tags["addr:street"]} ${element.tags["addr:housenumber"] || ""}`.trim()
+                                        : "Address not available",
+                                    type: element.tags.emergency === "yes" ? "Emergency / Trauma" : "General Hospital",
+                                    phone: element.tags.phone || element.tags["contact:phone"] || null,
+                                    maps_link: `https://www.google.com/maps/dir/?api=1&origin=${lat},${lon}&destination=${hLat},${hLon}`
+                                });
+                            }
+                        });
+                    }
+
+                    hospitals.sort((a, b) => a.distanceVal - b.distanceVal);
+                    renderHospitals(hospitals);
+                })
+                .catch(err => {
+                    console.error("Overpass query error: ", err);
+                    renderErrorList("Error querying nearby medical facilities. Please verify your connection.");
+                })
+                .finally(() => {
+                    const loader = document.getElementById("map-loading");
+                    if (loader) loader.classList.add("hidden");
+                });
+        }
+
+
+        /* ------------------ COMMON ACTIONS & RENDERING ------------------ */
+
+        function renderHospitals(hospitals) {
+            const listContainer = document.getElementById("hospital-list");
+            listContainer.innerHTML = "";
+
+            if (hospitals.length === 0) {
+                listContainer.innerHTML = `
+                    <div class="text-center py-10 text-gray-500">
+                        <span class="material-symbols-outlined text-4xl mb-2">search_off</span>
+                        <p>No hospitals found within ${searchRadius / 1000} km.</p>
+                        <p class="text-xs mt-1">Try expanding the search radius above.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            hospitals.forEach((hosp, index) => {
+                const cardId = `hosp-card-${index}`;
+
+                // Add marker to map
+                if (activeProvider === "google") {
+                    const marker = new google.maps.Marker({
+                        position: { lat: hosp.lat, lng: hosp.lng },
+                        map: mapInstance,
+                        title: hosp.name,
+                        label: {
+                            text: (index + 1).toString(),
+                            color: '#ffffff',
+                            fontWeight: 'bold'
+                        },
+                        icon: {
+                            path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+                            scale: 6,
+                            fillColor: '#10b981',
+                            fillOpacity: 1,
+                            strokeColor: '#ffffff',
+                            strokeWeight: 1.5
+                        }
+                    });
+
+                    const infowindow = new google.maps.InfoWindow({
+                        content: `<div class="text-gray-900 p-1 text-xs"><strong>${hosp.name}</strong><br>${hosp.distance} away</div>`
+                    });
+
+                    marker.addListener("click", () => {
+                        infowindow.open(mapInstance, marker);
+                        scrollToHospitalCard(cardId);
+                    });
+
+                    mapMarkers.push(marker);
+                } else {
+                    // Leaflet Marker
+                    const numberIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div class="bg-emerald-600 border-2 border-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-bold text-white shadow">${index + 1}</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const marker = L.marker([hosp.lat, hosp.lng], { icon: numberIcon }).addTo(mapInstance);
+                    marker.bindPopup(`<b>${hosp.name}</b><br>${hosp.distance} away`);
+
+                    marker.on('click', () => {
+                        scrollToHospitalCard(cardId);
+                    });
+
+                    mapMarkers.push(marker);
+                }
+
+                // Render Card List UI
+                const card = document.createElement("div");
+                card.id = cardId;
+                card.className = "p-4 rounded-xl bg-gray-900/40 border border-gray-800/80 hover:border-gray-700/90 transition-all flex flex-col md:flex-row md:items-center justify-between gap-3 group scroll-mt-4";
+                card.innerHTML = `
+                    <div class="flex-grow">
+                        <div class="flex items-start gap-2.5">
+                            <span class="w-5 h-5 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-[10px] font-bold text-emerald-400 mt-0.5">${index + 1}</span>
+                            <div>
+                                <h4 class="font-bold text-gray-100 group-hover:text-white transition-colors text-sm">${hosp.name}</h4>
+                                <p class="text-xs text-gray-400 mt-0.5">${hosp.address}</p>
+                                <span class="inline-block mt-2 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">${hosp.type}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex md:flex-col items-end justify-between border-t border-gray-800 md:border-t-0 pt-2.5 md:pt-0 gap-1.5 shrink-0">
+                        <span class="text-sm font-bold text-white tracking-tight flex items-center gap-1">
+                            <span class="material-symbols-outlined text-xs text-emerald-400">near_me</span>
+                            ${hosp.distance}
+                        </span>
+                        <div class="flex items-center gap-3">
+                            <a href="tel:${hosp.phone || '108'}" class="text-xs text-emerald-400 hover:text-emerald-300 font-bold underline flex items-center gap-0.5">
+                                <span class="material-symbols-outlined text-[10px]">call</span> ${hosp.phone ? 'Call' : 'Call 108'}
+                            </a>
+                            <a href="${hosp.maps_link}" target="_blank" class="text-xs text-red-400 hover:text-red-300 font-bold underline flex items-center gap-0.5">
+                                Directions <span class="material-symbols-outlined text-[10px]">open_in_new</span>
+                            </a>
+                        </div>
+                    </div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        function scrollToHospitalCard(cardId) {
+            const element = document.getElementById(cardId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                // Briefly flash background border
+                element.classList.add("border-emerald-500/50");
+                setTimeout(() => {
+                    element.classList.remove("border-emerald-500/50");
+                }, 2000);
+            }
+        }
+
+        function renderErrorList(msg) {
+            const listContainer = document.getElementById("hospital-list");
+            listContainer.innerHTML = `
+                <div class="text-center py-10 text-red-400 bg-red-950/15 border border-red-900/30 rounded-xl p-4">
+                    <span class="material-symbols-outlined text-3xl mb-1.5">error</span>
+                    <p class="text-xs font-semibold">${msg}</p>
+                </div>
+            `;
+        }
+
+        // Haversine formula for distance calculation in km
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const d = R * c;
+            return d.toFixed(1) + " km";
+        }
+    </script>
 </body>
+
 </html>

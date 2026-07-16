@@ -1,23 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ReliefMind Triage</title>
+    <meta name="description" content="AI-powered emergency medical triage guidance. Get critical instructions while help is on the way.">
+    <title>ReliefMind Triage - AI Emergency Guidance</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at 50% 50%, #111827 0%, #030712 100%);
+            overflow-x: hidden;
+        }
+        .heading-font {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .mono-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
+        }
+        /* Animated gradient blobs */
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            opacity: 0.15;
+            animation: float-blob 10s infinite alternate ease-in-out;
+        }
+        @keyframes float-blob {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(40px, -40px) scale(1.2); }
+        }
+        /* Glassmorphism styling */
+        .glass-card {
+            background: rgba(17, 24, 39, 0.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        /* Radar pulse animation for emergency button */
+        .pulse-ring {
+            animation: pulse-wave 2s infinite ease-out;
+        }
+        @keyframes pulse-wave {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.8;
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            }
+            70% {
+                transform: scale(1.15);
+                opacity: 0;
+                box-shadow: 0 0 0 30px rgba(239, 68, 68, 0);
+            }
+            100% {
+                transform: scale(0.95);
+                opacity: 0;
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
 </head>
+<body class="text-white min-h-screen flex items-center justify-center relative px-4">
+    <!-- Animated backgrounds -->
+    <div class="blob w-72 h-72 bg-red-600 top-1/4 left-1/4" style="animation-duration: 8s;"></div>
+    <div class="blob w-80 h-80 bg-blue-600 bottom-1/4 right-1/4" style="animation-duration: 12s; animation-delay: 2s;"></div>
 
-<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
-    <div class="text-center px-6">
-        <h1 class="text-4xl font-bold mb-4">ReliefMind Triage</h1>
-        <p class="text-gray-400 mb-8">AI-powered guidance while help is on the way</p>
-        <a href="/input"
-            class="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-10 rounded-lg text-xl inline-block">
-            Get Help Now
-        </a>
-        <p class="text-xs text-gray-500 mt-8">Not a diagnosis tool. Always call 108 in an emergency.</p>
+    <div class="glass-card max-w-lg w-full rounded-2xl p-8 text-center relative z-10 mx-auto">
+        <!-- Logo / Badge -->
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-6 text-xs font-semibold uppercase tracking-wider">
+            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
+            AI Triage System
+        </div>
+
+        <h1 class="text-4xl font-extrabold mb-3 tracking-tight heading-font bg-gradient-to-r from-white via-gray-100 to-gray-400 bg-clip-text text-transparent">
+            ReliefMind Triage
+        </h1>
+        <p class="text-gray-400 mb-10 text-sm leading-relaxed max-w-sm mx-auto">
+            Providing immediate AI guidance based on symptoms and conditions while medical help is on the way.
+        </p>
+
+        <!-- Dynamic Emergency Button -->
+        <div class="relative inline-block mb-10">
+            <a id="reportBtn" href="/input" class="pulse-ring absolute inset-0 rounded-full bg-red-500/20 z-0"></a>
+            <a href="/input" class="relative z-10 flex flex-col items-center justify-center w-56 h-56 rounded-full bg-gradient-to-br from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white shadow-[0_0_30px_rgba(239,68,68,0.4)] active:scale-95 transition-transform duration-200 cursor-pointer">
+                <span class="material-symbols-outlined text-6xl mb-1 drop-shadow-md">emergency</span>
+                <span class="text-xl font-bold mono-font tracking-wide">REPORT</span>
+                <span class="text-[10px] font-bold tracking-widest text-red-200 uppercase mt-0.5">Emergency</span>
+            </a>
+        </div>
+
+        <!-- Footer / Warning note -->
+        <div class="border-t border-gray-800/60 pt-6 mt-2">
+            <div class="flex items-center justify-center gap-2 text-gray-500 text-xs mb-2">
+                <span class="material-symbols-outlined text-sm">info</span>
+                Not a diagnosis tool.
+            </div>
+            <p class="text-sm font-semibold text-gray-300">
+                Always call <a href="tel:108" class="text-red-400 hover:underline">108 (Emergency Services)</a> first.
+            </p>
+        </div>
     </div>
 </body>
-
 </html>
