@@ -72,6 +72,27 @@
     <div class="blob w-80 h-80 bg-blue-600 bottom-1/4 right-1/4" style="animation-duration: 12s; animation-delay: 2s;"></div>
 
     <div class="glass-card max-w-lg w-full rounded-2xl p-8 text-center relative z-10 mx-auto">
+        <!-- One-Tap SOS Quick Action Banner -->
+        <div class="mb-6 p-4 rounded-xl border border-red-500/20 bg-red-950/20 flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-red-500 animate-pulse text-3xl">emergency</span>
+                <div>
+                    <span class="font-bold text-red-400 block text-sm">🚨 Instant One-Tap SOS</span>
+                    <span class="text-xs text-gray-400">Dials 108 and auto-copies your exact GPS coordinates to read to the operator.</span>
+                </div>
+            </div>
+            <button onclick="triggerOneTapSOS(event)"
+                class="w-full sm:w-auto px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-md active:scale-95">
+                <span class="material-symbols-outlined text-sm">call</span> CALL 108 NOW
+            </button>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="sos-toast" class="hidden fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl bg-emerald-950 border border-emerald-500/30 text-emerald-400 text-xs font-semibold shadow-lg shadow-black/50 items-center gap-2">
+            <span class="material-symbols-outlined text-sm">content_copy</span>
+            <span id="sos-toast-msg">GPS Coordinates copied to clipboard!</span>
+        </div>
+
         <!-- Logo / Badge -->
         <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 mb-6 text-xs font-semibold uppercase tracking-wider">
             <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
@@ -106,5 +127,52 @@
             </p>
         </div>
     </div>
+
+    <script>
+        function triggerOneTapSOS(event) {
+            event.preventDefault();
+            const toast = document.getElementById("sos-toast");
+            const toastMsg = document.getElementById("sos-toast-msg");
+
+            function showToast(msg, isSuccess=true) {
+                toastMsg.innerText = msg;
+                toast.classList.remove("hidden", "bg-emerald-950", "border-emerald-500/30", "text-emerald-400", "bg-red-950", "border-red-500/30", "text-red-400");
+                if (isSuccess) {
+                    toast.classList.add("bg-emerald-950", "border-emerald-500/30", "text-emerald-400", "flex");
+                } else {
+                    toast.classList.add("bg-red-950", "border-red-500/30", "text-red-400", "flex");
+                }
+                setTimeout(() => {
+                    toast.classList.add("hidden");
+                    toast.classList.remove("flex");
+                }, 4000);
+            }
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const coords = `GPS Coords: Lat ${position.coords.latitude.toFixed(6)}, Lng ${position.coords.longitude.toFixed(6)}`;
+                        navigator.clipboard.writeText(coords)
+                            .then(() => {
+                                showToast("📋 GPS Coords copied to clipboard! Calling 108...");
+                                setTimeout(() => { window.location.href = "tel:108"; }, 1500);
+                            })
+                            .catch(() => {
+                                showToast("Calling 108...", true);
+                                window.location.href = "tel:108";
+                            });
+                    },
+                    (error) => {
+                        showToast("Location denied. Calling 108...", false);
+                        setTimeout(() => { window.location.href = "tel:108"; }, 1200);
+                    },
+                    { timeout: 5000, enableHighAccuracy: true }
+                );
+            } else {
+                showToast("Calling 108...", true);
+                window.location.href = "tel:108";
+            }
+        }
+    </script>
 </body>
 </html>
