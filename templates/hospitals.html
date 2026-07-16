@@ -582,56 +582,24 @@
             }
         }
 
-        function fetchOpenStreetMapDataForGoogleMap() {
+        async function fetchOpenStreetMapDataForGoogleMap() {
             const lat = currentCoords.lat;
             const lon = currentCoords.lng;
             const radius = searchRadius;
-            const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json][timeout:25];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
+            const query = `[out:json][timeout:15];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
 
-            fetch(overpassUrl)
-                .then(res => res.json())
-                .then(data => {
-                    clearMapMarkers();
-                    const hospitals = [];
-
-                    if (data && data.elements) {
-                        data.elements.forEach(element => {
-                            const hLat = element.lat || (element.center && element.center.lat);
-                            const hLon = element.lon || (element.center && element.center.lon);
-                            
-                            if (hLat && hLon) {
-                                const rawName = element.tags.name || "Unnamed Medical Facility";
-                                const distanceText = calculateDistance(lat, lon, hLat, hLon);
-                                const distanceVal = parseFloat(distanceText);
-
-                                hospitals.push({
-                                    name: rawName,
-                                    lat: hLat,
-                                    lng: hLon,
-                                    distance: distanceText,
-                                    distanceVal: distanceVal,
-                                    address: element.tags["addr:street"] 
-                                        ? `${element.tags["addr:street"]} ${element.tags["addr:housenumber"] || ""}`.trim()
-                                        : "Address not available",
-                                    type: element.tags.emergency === "yes" ? "Emergency / Trauma" : "General Hospital",
-                                    phone: element.tags.phone || element.tags["contact:phone"] || null,
-                                    maps_link: `https://www.google.com/maps/dir/?api=1&origin=${lat},${lon}&destination=${hLat},${hLon}`
-                                });
-                            }
-                        });
-                    }
-
-                    hospitals.sort((a, b) => a.distanceVal - b.distanceVal);
-                    renderHospitals(hospitals);
-                })
-                .catch(err => {
-                    console.error("Overpass query error: ", err);
-                    renderErrorList("Error querying nearby medical facilities. Please verify your connection.");
-                })
-                .finally(() => {
-                    const loader = document.getElementById("map-loading");
-                    if (loader) loader.classList.add("hidden");
-                });
+            try {
+                const data = await fetchOverpassData(query);
+                clearMapMarkers();
+                const hospitals = buildHospitalList(data, lat, lon);
+                renderHospitals(hospitals);
+            } catch (err) {
+                console.error("OSM fallback search on Google Map failed:", err);
+                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.");
+            } finally {
+                const loader = document.getElementById("map-loading");
+                if (loader) loader.classList.add("hidden");
+            }
         }
 
 
