@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-
 EXTRACTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -19,15 +17,20 @@ EXTRACTION_SCHEMA = {
     "required": ["can_walk", "is_breathing", "breathing_labored", "pulse_present", "can_follow_commands"]
 }
 
-model = genai.GenerativeModel(
-    "gemini-2.0-flash",
-    generation_config={
-        "response_mime_type": "application/json",
-        "response_schema": EXTRACTION_SCHEMA
-    }
-)
-
 def extract_symptoms(text: str) -> dict:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY is not set in environment variables.")
+        
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel(
+        "gemini-2.0-flash",
+        generation_config={
+            "response_mime_type": "application/json",
+            "response_schema": EXTRACTION_SCHEMA
+        }
+    )
+    
     prompt = f"""Read this patient description and determine each field.
 The description might be in English, Tamil (தமிழ்), Hindi (हिंदी), or mixed languages. Translate internally if necessary.
 Default to the safer (more urgent) assumption if something is unclear or ambiguous.

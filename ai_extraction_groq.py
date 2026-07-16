@@ -5,8 +5,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
 EXTRACTION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -20,6 +18,11 @@ EXTRACTION_SCHEMA = {
 }
 
 def extract_symptoms(text: str) -> dict:
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY is not set in environment variables.")
+        
+    client = Groq(api_key=api_key)
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
         response_format={"type": "json_object"},
