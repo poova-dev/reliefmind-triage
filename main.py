@@ -9,12 +9,6 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-MOCK_HOSPITALS = [
-    {"name": "Government General Hospital", "distance": "1.2 km", "type": "Trauma Center", "maps_link": "https://maps.google.com"},
-    {"name": "Apollo Hospital", "distance": "2.5 km", "type": "Multi-specialty", "maps_link": "https://maps.google.com"},
-    {"name": "Primary Health Centre - Anna Nagar", "distance": "0.8 km", "type": "PHC", "maps_link": "https://maps.google.com"},
-]
-
 @app.get("/", response_class=HTMLResponse)
 def landing(request: Request):
     return templates.TemplateResponse("landing.html", {"request": request})
@@ -26,13 +20,27 @@ def input_page(request: Request):
 @app.post("/result", response_class=HTMLResponse)
 def result_page(request: Request, symptom_text: str = Form(...), disaster_mode: str = Form(None)):
     is_disaster = disaster_mode == "true"
-    result = process_emergency(symptom_text, disaster_mode=is_disaster)
+    try:
+        result = process_emergency(symptom_text, disaster_mode=is_disaster)
+    except Exception as e:
+        print(f"Error processing triage logic: {e}")
+        result = {
+            "severity": "YELLOW",
+            "reason": "We couldn't fully analyze the description. Please call 108 immediately to report the emergency to the medical operator.",
+            "extracted_data": {
+                "can_walk": False,
+                "is_breathing": True,
+                "breathing_labored": False,
+                "pulse_present": True,
+                "can_follow_commands": True,
+                "disaster_mode": is_disaster
+            }
+        }
     return templates.TemplateResponse("result.html", {"request": request, "result": result})
 
 @app.get("/hospitals", response_class=HTMLResponse)
 def hospitals_page(request: Request):
     return templates.TemplateResponse("hospitals.html", {
         "request": request,
-        "hospitals": MOCK_HOSPITALS,
         "google_maps_api_key": os.environ.get("GOOGLE_MAPS_API_KEY", "")
     })
