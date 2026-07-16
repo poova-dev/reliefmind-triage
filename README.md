@@ -12,7 +12,7 @@ Takes a free-text description of symptoms, extracts structured data using an LLM
 - Backend: Python, FastAPI
 - AI: Groq (Llama 3.3 70B) for structured symptom extraction
 - Frontend: Jinja2 templates, Tailwind CSS
-- Deployment: Render
+- Deployment: Railway / Cloud Hosting
 
 ## Setup
 1. `python3 -m venv venv && source venv/bin/activate`
@@ -21,4 +21,4 @@ Takes a free-text description of symptoms, extracts structured data using an LLM
 4. `uvicorn main:app --reload`
 
 ## Live Demo
-https://reliefmind-triage.onrender.com/
+[Provide your deployed link here]
