@@ -5,17 +5,21 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pipeline import process_emergency
 
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 @app.get("/", response_class=HTMLResponse)
 def landing(request: Request):
-    return templates.TemplateResponse("landing.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="landing.html", context={})
 
 @app.get("/input", response_class=HTMLResponse)
 def input_page(request: Request):
-    return templates.TemplateResponse("input.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="input.html", context={})
 
 @app.post("/result", response_class=HTMLResponse)
 def result_page(request: Request, symptom_text: str = Form(...), disaster_mode: str = Form(None)):
@@ -36,11 +40,10 @@ def result_page(request: Request, symptom_text: str = Form(...), disaster_mode: 
                 "disaster_mode": is_disaster
             }
         }
-    return templates.TemplateResponse("result.html", {"request": request, "result": result})
+    return templates.TemplateResponse(request=request, name="result.html", context={"result": result})
 
 @app.get("/hospitals", response_class=HTMLResponse)
 def hospitals_page(request: Request):
-    return templates.TemplateResponse("hospitals.html", {
-        "request": request,
+    return templates.TemplateResponse(request=request, name="hospitals.html", context={
         "google_maps_api_key": os.environ.get("GOOGLE_MAPS_API_KEY", "")
     })
