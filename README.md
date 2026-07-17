@@ -21,4 +21,5 @@ Takes a free-text description of symptoms, extracts structured data using an LLM
 4. `uvicorn main:app --reload`
 
 ## Live Demo
-[Provide your deployed link here]
+- **Live Application:** [poova-dev-reliefmind-triage.vercel.app](https://poova-dev-reliefmind-triage.vercel.app)
+- **Deployment Platform:** Vercel (Production)

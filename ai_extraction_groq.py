@@ -37,4 +37,20 @@ def extract_symptoms(text: str) -> dict:
             }
         ]
     )
-    return json.loads(response.choices[0].message.content)
+    data = json.loads(response.choices[0].message.content)
+    
+    # Enforce schema validation strictly
+    required_keys = ["can_walk", "is_breathing", "breathing_labored", "pulse_present", "can_follow_commands"]
+    for key in required_keys:
+        if key not in data:
+            raise ValueError(f"Missing key in AI response: {key}")
+        if not isinstance(data[key], bool):
+            # Try to coerce string boolean values if LLM outputted them
+            if str(data[key]).lower() == "true":
+                data[key] = True
+            elif str(data[key]).lower() == "false":
+                data[key] = False
+            else:
+                raise TypeError(f"Key '{key}' must be a boolean, got type: {type(data[key])}")
+                
+    return data

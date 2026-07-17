@@ -24,13 +24,25 @@ def input_page(request: Request):
 @app.post("/result", response_class=HTMLResponse)
 def result_page(request: Request, symptom_text: str = Form(...), disaster_mode: str = Form(None)):
     is_disaster = disaster_mode == "true"
+    
+    # 1. Enforce length limit to prevent abuse/spam
+    if symptom_text and len(symptom_text) > 2000:
+        symptom_text = symptom_text[:2000]
+        
     try:
         result = process_emergency(symptom_text, disaster_mode=is_disaster)
+        result["ai_failed"] = False
     except Exception as e:
-        print(f"Error processing triage logic: {e}")
+        import sys
+        import traceback
+        print(f"CRITICAL ERROR in process_emergency: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        
+        # Fallback safe values
         result = {
             "severity": "YELLOW",
-            "reason": "We couldn't fully analyze the description. Please call 108 immediately to report the emergency to the medical operator.",
+            "reason": "AI Symptom Extraction is currently offline. Please call 108 immediately to report your emergency to the medical operator.",
+            "ai_failed": True,
             "extracted_data": {
                 "can_walk": False,
                 "is_breathing": True,
