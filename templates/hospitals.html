@@ -370,7 +370,11 @@
                         signal = controller.signal;
                         setTimeout(() => controller.abort(), 12000);
                     }
-                    const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, { signal: signal });
+                    const fetchOptions = {};
+                    if (signal) {
+                        fetchOptions.signal = signal;
+                    }
+                    const res = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, fetchOptions);
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     return await res.json();
                 } catch (err) {
@@ -425,7 +429,7 @@
                 renderHospitals(hospitals);
             } catch (err) {
                 console.error("All Overpass sources failed:", err);
-                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.");
+                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.", err);
             } finally {
                 const loader = document.getElementById("map-loading");
                 if (loader) loader.classList.add("hidden");
@@ -595,7 +599,7 @@
                 renderHospitals(hospitals);
             } catch (err) {
                 console.error("OSM fallback search on Google Map failed:", err);
-                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.");
+                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.", err);
             } finally {
                 const loader = document.getElementById("map-loading");
                 if (loader) loader.classList.add("hidden");
@@ -714,10 +718,19 @@
             }
         }
 
-        function renderErrorList(msg) {
+        function renderErrorList(msg, err) {
             const listContainer = document.getElementById("hospital-list");
             const countEl = document.getElementById("hospital-count");
             if (countEl) countEl.innerText = "";
+            
+            let debugHtml = "";
+            if (err) {
+                const errMsg = err.message || String(err);
+                debugHtml = `<div class="mt-4 p-2 bg-black/45 border border-red-900/40 rounded-lg text-[10px] text-gray-500 font-mono text-left max-w-full overflow-x-auto break-all">
+                    <strong>Debug Log:</strong> ${errMsg}
+                </div>`;
+            }
+
             listContainer.innerHTML = `
                 <div class="text-center py-8 flex flex-col items-center gap-3">
                     <span class="material-symbols-outlined text-4xl text-red-400">wifi_off</span>
@@ -726,6 +739,7 @@
                     <a href="tel:108" class="mt-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all">
                         <span class="material-symbols-outlined text-sm">emergency</span> Call Emergency 108
                     </a>
+                    ${debugHtml}
                 </div>
             `;
         }
