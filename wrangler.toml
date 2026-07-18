@@ -1,8 +1,0 @@
-name = "reliefmind-triage"
-main = "main.py"
-compatibility_date = "2026-07-18"
-compatibility_flags = ["python_workers"]
-
-# Cloudflare environment variables (Secrets like GROQ_API_KEY should be set via dashboard or 'wrangler secret put')
-[vars]
-# Add any non-secret variables here if needed
