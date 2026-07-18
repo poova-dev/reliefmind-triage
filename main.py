@@ -1,11 +1,15 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from pipeline import process_emergency
-
-from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
