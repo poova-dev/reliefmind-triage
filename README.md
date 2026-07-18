@@ -86,3 +86,10 @@ ReliefMind Triage takes free-text description of symptoms (via text or voice), e
 *   **Reduced Dispatch Times:** Instant translation of conversational reports into structured triage data.
 *   **Empowered Bystanders:** Direct access to clear first-aid instructions based on the patient's severity.
 *   **Resiliency during Disasters:** Optimized resource allocation in high-casualty events using the disaster triage engine.
+
+---
+
+## 🚀 Future Roadmap & Scalability
+*   **Medical RAG (Retrieval-Augmented Generation):** Connect the AI symptom parser to a vector database containing official WHO (World Health Organization) and Red Cross clinical first-aid manuals to verify all guidelines and eliminate LLM hallucinations.
+*   **Wearable & IoT Integration:** Allow the app to pull bio-telemetry feeds (e.g., heart rate, SpO2, ECG) directly from smartwatches and connected pulse oximeters to provide objective triage criteria.
+*   **Trusted Clinical API Feeds:** Integrate with public databases like NIH's PubMed, MeSH, and RxNorm to cross-reference symptom profiles with real-time epidemiological feeds and drug safety databases.
