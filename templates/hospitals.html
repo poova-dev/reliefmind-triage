@@ -10,9 +10,7 @@
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@500;700&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
         rel="stylesheet">
 
-    <!-- Leaflet.js for free dark map fallback -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 
     <style>
         body {
@@ -66,16 +64,7 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
-        /* Style adjustments for leaflet zoom controls to match dark theme */
-        .leaflet-bar a {
-            background-color: #1f2937 !important;
-            color: #f9fafb !important;
-            border-bottom: 1px solid #374151 !important;
-        }
 
-        .leaflet-bar a:hover {
-            background-color: #374151 !important;
-        }
     </style>
 </head>
 
@@ -189,7 +178,6 @@
         let searchRadius = 5000; // 5km default
         let mapInstance = null;
         let mapMarkers = [];
-        let activeProvider = "osm"; // "google" or "osm"
         let originalSearchRadius = null; // Track user selected radius
 
         // Backend passed key (if set)
@@ -205,11 +193,19 @@
             detectLocationAndInit();
         });
 
-        // Google Maps auth failure fallback
+        // Google Maps auth failure handler
         window.gm_authFailure = function () {
-            console.warn("Google Maps auth failure. Falling back to OpenStreetMap.");
-            activeProvider = "osm";
-            initLeafletMap();
+            console.warn("Google Maps auth failure.");
+            const mapContainer = document.getElementById("map");
+            mapContainer.innerHTML = `
+                <div class="absolute inset-0 bg-gray-950/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl text-center px-4">
+                    <span class="material-symbols-outlined text-4xl text-red-500">map_error</span>
+                    <p class="text-sm font-semibold text-red-500">Google Maps Authorization Failed</p>
+                    <p class="text-xs text-gray-400">The provided API key is either invalid, restricted, or has expired. Please check your credentials.</p>
+                </div>
+            `;
+            // Still load fallback hospitals list for side panel!
+            fetchOpenStreetMapDataForGoogleMap();
         };
 
         function updateSearchRadius(val) {
@@ -220,10 +216,10 @@
             const loader = document.getElementById("map-loading");
             if (loader) loader.classList.remove("hidden");
 
-            if (activeProvider === "google") {
+            if (mapInstance && typeof google !== 'undefined') {
                 searchGooglePlaces();
             } else {
-                searchOpenStreetMapPlaces();
+                fetchOpenStreetMapDataForGoogleMap();
             }
         }
 
@@ -300,19 +296,15 @@
                     setTimeout(() => {
                         closeLocationModal();
                         // Reinitialize map with new coords
-                        if (mapInstance) {
-                            if (activeProvider === "osm") {
-                                mapInstance.setView([currentCoords.lat, currentCoords.lng], 13);
-                            } else {
-                                mapInstance.setCenter({ lat: currentCoords.lat, lng: currentCoords.lng });
-                            }
+                        if (mapInstance && typeof google !== 'undefined') {
+                            mapInstance.setCenter({ lat: currentCoords.lat, lng: currentCoords.lng });
                         }
                         // Hide the banner since location is now set
                         document.getElementById("location-banner").classList.add("hidden");
-                        if (activeProvider === "google") {
+                        if (mapInstance && typeof google !== 'undefined') {
                             searchGooglePlaces();
                         } else {
-                            searchOpenStreetMapPlaces();
+                            fetchOpenStreetMapDataForGoogleMap();
                         }
                     }, 800);
                 } else {
@@ -323,47 +315,25 @@
             }
         }
 
-        // Orchestrate whether we load Google or Leaflet (OSM)
+        // Orchestrate loading Google Maps
         function setupMapAndQuery() {
             const key = getMapsApiKey();
             if (key) {
-                activeProvider = "google";
                 loadGoogleMapsApi(key);
             } else {
-                activeProvider = "osm";
-                initLeafletMap();
+                const mapContainer = document.getElementById("map");
+                mapContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-gray-950/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl text-center px-4">
+                        <span class="material-symbols-outlined text-4xl text-red-500">map_error</span>
+                        <p class="text-sm font-semibold text-red-500">Google Maps API Key Missing</p>
+                        <p class="text-xs text-gray-400">Please set the GOOGLE_MAPS_API_KEY environment variable in your server configuration or .env file to enable Google Maps.</p>
+                    </div>
+                `;
+                // Still load fallback hospitals list for side panel!
+                fetchOpenStreetMapDataForGoogleMap();
             }
         }
 
-        /* ------------------ LEAFLET (OSM) PROVIDER ------------------ */
-
-        function initLeafletMap() {
-            const mapContainer = document.getElementById("map");
-
-            // Clear prior map element to reset
-            mapContainer.innerHTML = '<div id="map-loading" class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl hidden"><div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div><p class="text-sm text-gray-400">Loading dynamic emergency map...</p></div>';
-
-            mapInstance = L.map('map', { zoomControl: true }).setView([currentCoords.lat, currentCoords.lng], 13);
-
-            // Load CartoDB Dark Matter tiles (premium look & free)
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-                subdomains: 'abcd',
-                maxZoom: 20
-            }).addTo(mapInstance);
-
-            // Add Red circle indicator for patient location
-            const patientCircle = L.circle([currentCoords.lat, currentCoords.lng], {
-                color: '#ef4444',
-                fillColor: '#ef4444',
-                fillOpacity: 0.25,
-                radius: 120
-            }).addTo(mapInstance);
-            patientCircle.bindPopup("<b>Patient Location</b>").openPopup();
-
-            // Perform Overpass hospital fetch
-            searchOpenStreetMapPlaces();
-        }
 
         // Dual-mirror Overpass query with automatic fallback
         const OVERPASS_ENDPOINTS = [
@@ -433,48 +403,11 @@
         // the nearest hospital by a few km — this makes the app resilient to that.
         const RADIUS_FALLBACKS = [5000, 10000, 20000]; // matches dropdown's max option
 
-        async function searchOpenStreetMapPlaces(radiusOverride) {
-            const lat = currentCoords.lat;
-            const lon = currentCoords.lng;
-            const radius = radiusOverride || searchRadius;
-            // Highly optimized indexed search for standard amenity=hospital tags to prevent timeouts
-            const query = `[out:json][timeout:15];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
-
-            try {
-                const data = await fetchOverpassData(query);
-                clearMapMarkers();
-                const hospitals = buildHospitalList(data, lat, lon);
-
-                if (hospitals.length === 0) {
-                    const nextRadius = RADIUS_FALLBACKS.find(r => r > radius);
-                    if (nextRadius) {
-                        console.log(`0 hospitals at ${radius}m, auto-expanding to ${nextRadius}m`);
-                        return searchOpenStreetMapPlaces(nextRadius);
-                    }
-                }
-
-                // Keep the radius selector in sync with whatever radius actually succeeded
-                searchRadius = radius;
-                const radiusSelect = document.getElementById("radius-select");
-                if (radiusSelect) radiusSelect.value = radius;
-
-                renderHospitals(hospitals);
-            } catch (err) {
-                console.error("All Overpass sources failed:", err);
-                renderErrorList("Could not load hospitals. Check your internet connection or try a larger radius.", err);
-            } finally {
-                const loader = document.getElementById("map-loading");
-                if (loader) loader.classList.add("hidden");
-            }
-        }
-
         function clearMapMarkers() {
             if (mapMarkers && mapMarkers.length > 0) {
-                if (activeProvider === "google") {
-                    mapMarkers.forEach(m => m.setMap(null));
-                } else {
-                    mapMarkers.forEach(m => mapInstance.removeLayer(m));
-                }
+                mapMarkers.forEach(m => {
+                    if (m && typeof m.setMap === 'function') m.setMap(null);
+                });
             }
             mapMarkers = [];
         }
@@ -487,9 +420,17 @@
             script.async = true;
             script.defer = true;
             script.onerror = () => {
-                console.warn("Google Maps script failed to load. Falling back to OpenStreetMap.");
-                activeProvider = "osm";
-                initLeafletMap();
+                console.warn("Google Maps script failed to load.");
+                const mapContainer = document.getElementById("map");
+                mapContainer.innerHTML = `
+                    <div class="absolute inset-0 bg-gray-950/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl text-center px-4">
+                        <span class="material-symbols-outlined text-4xl text-red-500">map_error</span>
+                        <p class="text-sm font-semibold text-red-500">Google Maps Loading Failed</p>
+                        <p class="text-xs text-gray-400">Failed to load Google Maps script. Check your API key constraints or internet connection.</p>
+                    </div>
+                `;
+                // Still load fallback hospitals list for side panel!
+                fetchOpenStreetMapDataForGoogleMap();
             };
             document.head.appendChild(script);
         }
@@ -682,8 +623,8 @@
             hospitals.forEach((hosp, index) => {
                 const cardId = `hosp-card-${index}`;
 
-                // Add marker to map
-                if (activeProvider === "google") {
+                // Add marker to map if Google Map is loaded
+                if (mapInstance && typeof google !== 'undefined') {
                     const marker = new google.maps.Marker({
                         position: { lat: hosp.lat, lng: hosp.lng },
                         map: mapInstance,
@@ -702,17 +643,6 @@
                         content: `<div style="color:#111;padding:4px;font-size:12px"><strong>${hosp.name}</strong><br>${hosp.distance} away${hosp.phone ? '<br>📞 ' + hosp.phone : ''}</div>`
                     });
                     marker.addListener("click", () => { infowindow.open(mapInstance, marker); scrollToHospitalCard(cardId); });
-                    mapMarkers.push(marker);
-                } else {
-                    const numberIcon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `<div style="background:#059669;border:2px solid white;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;color:white;box-shadow:0 2px 6px rgba(0,0,0,0.4)">${index + 1}</div>`,
-                        iconSize: [28, 28],
-                        iconAnchor: [14, 14]
-                    });
-                    const marker = L.marker([hosp.lat, hosp.lng], { icon: numberIcon }).addTo(mapInstance);
-                    marker.bindPopup(`<b>${hosp.name}</b><br>${hosp.distance} away${hosp.phone ? '<br>📞 ' + hosp.phone : ''}`);
-                    marker.on('click', () => scrollToHospitalCard(cardId));
                     mapMarkers.push(marker);
                 }
 
