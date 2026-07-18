@@ -111,7 +111,8 @@
         </div>
 
         <!-- Manual Location Modal -->
-        <div id="location-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div id="location-modal"
+            class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div class="glass-card max-w-sm w-full rounded-2xl p-6 border border-gray-700">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-base font-bold heading-font flex items-center gap-2">
@@ -142,7 +143,8 @@
                 <div id="map" class="w-full h-full relative z-0">
                     <div id="map-loading"
                         class="absolute inset-0 bg-gray-950/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center gap-3 rounded-2xl">
-                        <div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin"></div>
+                        <div class="w-10 h-10 border-4 border-red-500 border-t-transparent rounded-full animate-spin">
+                        </div>
                         <p class="text-sm text-gray-400">Loading dynamic emergency map...</p>
                     </div>
                 </div>
@@ -188,6 +190,7 @@
         let mapInstance = null;
         let mapMarkers = [];
         let activeProvider = "osm"; // "google" or "osm"
+        let originalSearchRadius = null; // Track user selected radius
 
         // Backend passed key (if set)
         const BACKEND_API_KEY = "{{ google_maps_api_key }}";
@@ -203,7 +206,7 @@
         });
 
         // Google Maps auth failure fallback
-        window.gm_authFailure = function() {
+        window.gm_authFailure = function () {
             console.warn("Google Maps auth failure. Falling back to OpenStreetMap.");
             activeProvider = "osm";
             initLeafletMap();
@@ -211,6 +214,9 @@
 
         function updateSearchRadius(val) {
             searchRadius = parseInt(val, 10);
+            originalSearchRadius = searchRadius;
+            const radiusSelect = document.getElementById("radius-select");
+            if (radiusSelect) radiusSelect.dataset.userChoice = searchRadius;
             const loader = document.getElementById("map-loading");
             if (loader) loader.classList.remove("hidden");
 
@@ -231,11 +237,18 @@
                             lng: position.coords.longitude,
                             name: "Your Location"
                         };
+                        console.log(`📍 Detected: ${currentCoords.lat.toFixed(5)}, ${currentCoords.lng.toFixed(5)} (accuracy ±${Math.round(position.coords.accuracy)}m)`);
                         setupMapAndQuery();
                     },
                     (error) => {
-                        console.warn("Geolocation failed: ", error.message);
-                        showLocationBanner("GPS Access Denied", "Enable location services or tap 'Set Location' to search manually.");
+                        console.warn("Geolocation failed: ", error.code, error.message);
+                        if (error.code === 1) {
+                            showLocationBanner("Location Blocked for This Site", "Tap the lock icon next to the address bar → Permissions → Location → Allow, then reload. Or use 'Set Location' below.");
+                        } else if (error.code === 3) {
+                            showLocationBanner("GPS Timed Out", "Couldn't get a fix in time (weak signal indoors). Tap 'Set Location' to search manually.");
+                        } else {
+                            showLocationBanner("Location Unavailable", "Enable location services or tap 'Set Location' to search manually.");
+                        }
                         setupMapAndQuery();
                     },
                     { timeout: 8000, enableHighAccuracy: true }
@@ -283,7 +296,7 @@
                         lng: parseFloat(place.lon),
                         name: place.display_name.split(",")[0]
                     };
-                    statusEl.innerText = `✅ Found: ${place.display_name.split(",").slice(0,2).join(", ")}`;
+                    statusEl.innerText = `✅ Found: ${place.display_name.split(",").slice(0, 2).join(", ")}`;
                     setTimeout(() => {
                         closeLocationModal();
                         // Reinitialize map with new coords
@@ -415,10 +428,15 @@
             return hospitals;
         }
 
-        async function searchOpenStreetMapPlaces() {
+        // If a search comes back empty, auto-widen instead of dead-ending the user.
+        // Real GPS/Wi-Fi geolocation drift means a "correct" small radius can still miss
+        // the nearest hospital by a few km — this makes the app resilient to that.
+        const RADIUS_FALLBACKS = [5000, 10000, 20000]; // matches dropdown's max option
+
+        async function searchOpenStreetMapPlaces(radiusOverride) {
             const lat = currentCoords.lat;
             const lon = currentCoords.lng;
-            const radius = searchRadius;
+            const radius = radiusOverride || searchRadius;
             // Highly optimized indexed search for standard amenity=hospital tags to prevent timeouts
             const query = `[out:json][timeout:15];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
 
@@ -426,6 +444,20 @@
                 const data = await fetchOverpassData(query);
                 clearMapMarkers();
                 const hospitals = buildHospitalList(data, lat, lon);
+
+                if (hospitals.length === 0) {
+                    const nextRadius = RADIUS_FALLBACKS.find(r => r > radius);
+                    if (nextRadius) {
+                        console.log(`0 hospitals at ${radius}m, auto-expanding to ${nextRadius}m`);
+                        return searchOpenStreetMapPlaces(nextRadius);
+                    }
+                }
+
+                // Keep the radius selector in sync with whatever radius actually succeeded
+                searchRadius = radius;
+                const radiusSelect = document.getElementById("radius-select");
+                if (radiusSelect) radiusSelect.value = radius;
+
                 renderHospitals(hospitals);
             } catch (err) {
                 console.error("All Overpass sources failed:", err);
@@ -526,7 +558,7 @@
             try {
                 const centerLatLng = new google.maps.LatLng(currentCoords.lat, currentCoords.lng);
                 const { Place } = await google.maps.importLibrary("places");
-                
+
                 const request = {
                     includedTypes: ['hospital'],
                     maxResultCount: 20,
@@ -547,17 +579,17 @@
                 };
 
                 clearMapMarkers();
-                
+
                 const { places } = await Place.searchNearby(request);
                 const hospitals = [];
-                
+
                 if (places && places.length > 0) {
                     places.forEach(place => {
                         const hLat = place.location.lat();
                         const hLng = place.location.lng();
                         const distText = calculateDistance(currentCoords.lat, currentCoords.lng, hLat, hLng);
                         const distVal = parseFloat(distText);
-                        
+
                         hospitals.push({
                             name: place.displayName || "Hospital",
                             lat: hLat,
@@ -586,16 +618,30 @@
             }
         }
 
-        async function fetchOpenStreetMapDataForGoogleMap() {
+        async function fetchOpenStreetMapDataForGoogleMap(radiusOverride) {
             const lat = currentCoords.lat;
             const lon = currentCoords.lng;
-            const radius = searchRadius;
+            const radius = radiusOverride || searchRadius;
             const query = `[out:json][timeout:15];(node["amenity"="hospital"](around:${radius},${lat},${lon});way["amenity"="hospital"](around:${radius},${lat},${lon});relation["amenity"="hospital"](around:${radius},${lat},${lon}););out center;`;
 
             try {
                 const data = await fetchOverpassData(query);
                 clearMapMarkers();
                 const hospitals = buildHospitalList(data, lat, lon);
+
+                if (hospitals.length === 0) {
+                    const nextRadius = RADIUS_FALLBACKS.find(r => r > radius);
+                    if (nextRadius) {
+                        console.log(`(Google Fallback) 0 hospitals at ${radius}m, auto-expanding to ${nextRadius}m`);
+                        return fetchOpenStreetMapDataForGoogleMap(nextRadius);
+                    }
+                }
+
+                // Keep the radius selector in sync with whatever radius actually succeeded
+                searchRadius = radius;
+                const radiusSelect = document.getElementById("radius-select");
+                if (radiusSelect) radiusSelect.value = radius;
+
                 renderHospitals(hospitals);
             } catch (err) {
                 console.error("OSM fallback search on Google Map failed:", err);
@@ -615,7 +661,9 @@
 
             // Update count label
             const countEl = document.getElementById("hospital-count");
-            if (countEl) countEl.innerText = hospitals.length > 0 ? `(${hospitals.length} found)` : "";
+            const expandedNote = searchRadius > parseInt(document.getElementById("radius-select")?.dataset.userChoice || searchRadius, 10)
+                ? ` · expanded to ${searchRadius / 1000}km` : "";
+            if (countEl) countEl.innerText = hospitals.length > 0 ? `(${hospitals.length} found${expandedNote})` : "";
 
             if (hospitals.length === 0) {
                 listContainer.innerHTML = `
@@ -651,7 +699,7 @@
                         }
                     });
                     const infowindow = new google.maps.InfoWindow({
-                        content: `<div style="color:#111;padding:4px;font-size:12px"><strong>${hosp.name}</strong><br>${hosp.distance} away${hosp.phone ? '<br>📞 '+hosp.phone : ''}</div>`
+                        content: `<div style="color:#111;padding:4px;font-size:12px"><strong>${hosp.name}</strong><br>${hosp.distance} away${hosp.phone ? '<br>📞 ' + hosp.phone : ''}</div>`
                     });
                     marker.addListener("click", () => { infowindow.open(mapInstance, marker); scrollToHospitalCard(cardId); });
                     mapMarkers.push(marker);
@@ -663,7 +711,7 @@
                         iconAnchor: [14, 14]
                     });
                     const marker = L.marker([hosp.lat, hosp.lng], { icon: numberIcon }).addTo(mapInstance);
-                    marker.bindPopup(`<b>${hosp.name}</b><br>${hosp.distance} away${hosp.phone ? '<br>📞 '+hosp.phone : ''}`);
+                    marker.bindPopup(`<b>${hosp.name}</b><br>${hosp.distance} away${hosp.phone ? '<br>📞 ' + hosp.phone : ''}`);
                     marker.on('click', () => scrollToHospitalCard(cardId));
                     mapMarkers.push(marker);
                 }
@@ -687,9 +735,8 @@
                             <h4 class="font-bold text-gray-100 text-sm leading-tight group-hover:text-white transition-colors truncate">${hosp.name}</h4>
                             <p class="text-[11px] text-gray-500 mt-0.5 truncate">${hosp.address}</p>
                             <div class="flex items-center gap-2 mt-1.5">
-                                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
-                                    hosp.type.includes('Emergency') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                }">${hosp.type}</span>
+                                <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${hosp.type.includes('Emergency') ? 'bg-red-500/15 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                    }">${hosp.type}</span>
                                 <span class="text-xs font-bold text-white flex items-center gap-0.5">
                                     <span class="material-symbols-outlined text-[10px] text-emerald-400">near_me</span>${hosp.distance}
                                 </span>
@@ -722,7 +769,28 @@
             const listContainer = document.getElementById("hospital-list");
             const countEl = document.getElementById("hospital-count");
             if (countEl) countEl.innerText = "";
-            
+
+            let displayMsg = msg;
+            let displaySub = "Try a larger radius or check your internet connection.";
+            let icon = "wifi_off";
+
+            if (err) {
+                const errMsg = (err.message || String(err)).toLowerCase();
+                if (errMsg.includes("timeout") || errMsg.includes("abort")) {
+                    displayMsg = "Server Connection Timed Out";
+                    displaySub = "OpenStreetMap Overpass servers are currently overloaded. Try reloading the page.";
+                    icon = "timer_off";
+                } else if (errMsg.includes("fetch") || errMsg.includes("network")) {
+                    displayMsg = "Network Connection Failure";
+                    displaySub = "Failed to reach open mapping services. Please verify your internet connection.";
+                    icon = "cloud_off";
+                } else if (errMsg.includes("permission") || errMsg.includes("denied")) {
+                    displayMsg = "Location Services Blocked";
+                    displaySub = "Please allow location access in your browser settings to locate nearby facilities.";
+                    icon = "location_disabled";
+                }
+            }
+
             let debugHtml = "";
             if (err) {
                 const errMsg = err.message || String(err);
@@ -733,9 +801,9 @@
 
             listContainer.innerHTML = `
                 <div class="text-center py-8 flex flex-col items-center gap-3">
-                    <span class="material-symbols-outlined text-4xl text-red-400">wifi_off</span>
-                    <p class="text-xs font-semibold text-red-400">${msg}</p>
-                    <p class="text-xs text-gray-500">Try a larger radius or check your internet.</p>
+                    <span class="material-symbols-outlined text-4xl text-red-400">${icon}</span>
+                    <p class="text-xs font-semibold text-red-400">${displayMsg}</p>
+                    <p class="text-xs text-gray-500">${displaySub}</p>
                     <a href="tel:108" class="mt-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all">
                         <span class="material-symbols-outlined text-sm">emergency</span> Call Emergency 108
                     </a>
