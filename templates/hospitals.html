@@ -504,10 +504,11 @@
                     includedTypes: ['hospital'],
                     maxResultCount: 20,
                     locationRestriction: {
-                        circle: {
-                            center: centerLatLng,
-                            radius: searchRadius
-                        }
+                        center: {
+                            lat: currentCoords.lat,
+                            lng: currentCoords.lng
+                        },
+                        radius: searchRadius
                     },
                     fields: [
                         'id',
